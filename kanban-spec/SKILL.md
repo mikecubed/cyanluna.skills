@@ -49,8 +49,12 @@ All spec artifacts live in `.spec/` relative to the project root:
 When creating a new feature directory:
 
 ```bash
-NEXT=$(ls -d .spec/features/[0-9]* 2>/dev/null | wc -l | awk '{print $1+1}')
-FEATURE_NUM=$(printf "%03d" $NEXT)
+LAST_NUM=$(ls -d .spec/features/[0-9]* 2>/dev/null \
+  | sed -E 's|.*/([0-9]+).*|\1|' \
+  | sort -n \
+  | tail -n 1)
+NEXT_NUM=$([ -z "$LAST_NUM" ] && echo 1 || echo $((10#$LAST_NUM + 1)))
+FEATURE_NUM=$(printf "%03d" "$NEXT_NUM")
 ```
 
 Feature directory name: `NNN-<short-slug>` where short-slug is 2-4 words from the description, hyphenated, lowercase (e.g. `001-user-auth`, `002-payment-flow`).
@@ -218,24 +222,41 @@ For each unchecked task (`- [ ]`), create a kanban entry:
 ```bash
 curl -s -X POST http://localhost:5173/api/task \
   -H 'Content-Type: application/json' \
-  -d "{
-    \"title\": \"$TASK_TITLE\",
-    \"project\": \"$PROJECT\",
-    \"status\": \"todo\",
-    \"priority\": \"medium\",
-    \"level\": $LEVEL,
-    \"description\": \"Feature: $FEATURE_NAME\n\nUser Story: $STORY_LABEL\n\nSpec: .spec/features/$FEATURE_DIR/spec.md\nPlan: .spec/features/$FEATURE_DIR/plan.md\",
-    \"tags\": \"[\\\"$STORY_LABEL\\\", \\\"spec-imported\\\", \\\"$FEATURE_DIR\\\"]\"
-  }"
+  -d "$(jq -n \
+    --arg title "$TASK_TITLE" \
+    --arg project "$PROJECT" \
+    --argjson level "$LEVEL" \
+    --arg feature_name "$FEATURE_NAME" \
+    --arg story_label "$STORY_LABEL" \
+    --arg feature_dir "$FEATURE_DIR" \
+    '{
+      title: $title,
+      project: $project,
+      status: "todo",
+      priority: "medium",
+      level: $level,
+      description: ("Feature: " + $feature_name + "\n\nUser Story: " + $story_label + "\n\nSpec: .spec/features/" + $feature_dir + "/spec.md\nPlan: .spec/features/" + $feature_dir + "/plan.md"),
+      tags: ([$story_label, "spec-imported", $feature_dir] | tojson)
+    }')"
 ```
 
 **Via sqlite3 fallback (if board not running):**
 ```bash
-sqlite3 "$DB" "INSERT INTO tasks (title, project, status, priority, level, description, tags, created_at)
-  VALUES ('$TITLE', '$PROJECT', 'todo', 'medium', $LEVEL,
-    'Feature: $FEATURE_NAME\n\nUser Story: $STORY_LABEL\n\nSpec: .spec/features/$FEATURE_DIR/spec.md',
-    '[\"$STORY_LABEL\",\"spec-imported\",\"$FEATURE_DIR\"]',
-    datetime('now'));"
+sqlite3 "$DB" <<EOF
+.parameter init
+.parameter set :title "$TASK_TITLE"
+.parameter set :project "$PROJECT"
+.parameter set :level "$LEVEL"
+.parameter set :description "Feature: $FEATURE_NAME
+
+User Story: $STORY_LABEL
+
+Spec: .spec/features/$FEATURE_DIR/spec.md
+Plan: .spec/features/$FEATURE_DIR/plan.md"
+.parameter set :tags "[\"$STORY_LABEL\",\"spec-imported\",\"$FEATURE_DIR\"]"
+INSERT INTO tasks (title, project, status, priority, level, description, tags, created_at)
+  VALUES (:title, :project, 'todo', 'medium', :level, :description, :tags, datetime('now'));
+EOF
 ```
 
 After all tasks are imported, write the lock file:
