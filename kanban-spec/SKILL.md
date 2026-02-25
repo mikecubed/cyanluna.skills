@@ -19,11 +19,14 @@ Runs upstream spec-driven development phases and bridges the output into the kan
 
 ## Project Config
 
-Reads `.claude/kanban.json` (created by `/kanban-init`) for project name and DB path. If missing, prompt user to run `/kanban-init` first.
+Reads `.claude/kanban.json` (created by `/kanban-init`) for the project name and derives the DB path from it. If missing, prompt user to run `/kanban-init` first.
 
 ```bash
 PROJECT=$(cat .claude/kanban.json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['project'])" 2>/dev/null || basename "$(pwd)")
-DB="$HOME/.claude/kanban-dbs/${PROJECT}.db"
+# Sanitize to match kanban-board/plugins/kanban-api.ts sanitizeProject:
+# only letters, digits, '.', '_', '-' are kept; everything else becomes '_'
+SANITIZED_PROJECT="${PROJECT//[^A-Za-z0-9_.-]/_}"
+DB="$HOME/.claude/kanban-dbs/${SANITIZED_PROJECT}.db"
 ```
 
 ## Spec Directory Structure
@@ -92,6 +95,7 @@ For every phase, execute in this order:
      <PROJECT>         → project name
      <FEATURE_NUM>     → NNN (e.g. "001")
      <FEATURE_NAME>    → feature slug (e.g. "user-auth")
+     <FEATURE_DIR>     → full directory name, i.e. "${FEATURE_NUM}-${FEATURE_NAME}" (e.g. "001-user-auth")
      <DESCRIPTION>     → user's feature description
      <CONSTITUTION>    → contents of .spec/constitution.md (or "None yet")
      <SPEC>            → contents of current feature's spec.md (or "")
