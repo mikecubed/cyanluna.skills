@@ -163,10 +163,15 @@ function parseJsonArray(raw: string | null): any[] {
   }
 }
 
+function escapeHtml(s: string | null | undefined): string {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function renderCard(task: Task): string {
   const pClass = priorityClass(task.priority);
   const priorityBadge = pClass
-    ? `<span class="badge ${pClass}">${task.priority}</span>`
+    ? `<span class="badge ${pClass}">${escapeHtml(task.priority)}</span>`
     : "";
 
   const dateBadge = task.completed_at
@@ -177,13 +182,13 @@ function renderCard(task: Task): string {
 
   const projectBadge =
     !currentProject && task.project
-      ? `<span class="badge project">${task.project}</span>`
+      ? `<span class="badge project">${escapeHtml(task.project)}</span>`
       : "";
 
   // Status badge for pipeline stages
   const statusLabel = STATUS_BADGES[task.status];
   const statusBadge = statusLabel
-    ? `<span class="badge status-${task.status}">${statusLabel}</span>`
+    ? `<span class="badge status-${escapeHtml(task.status)}">${statusLabel}</span>`
     : "";
 
   // Level badge
@@ -191,7 +196,7 @@ function renderCard(task: Task): string {
 
   // Agent tag
   const agentBadge = task.current_agent
-    ? `<span class="badge agent-tag">${task.current_agent}</span>`
+    ? `<span class="badge agent-tag">${escapeHtml(task.current_agent)}</span>`
     : "";
 
   // Review badge (impl_review)
@@ -217,7 +222,7 @@ function renderCard(task: Task): string {
       : '';
 
   const tags = parseTags(task.tags)
-    .map((t) => `<span class="tag">${t}</span>`)
+    .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join("");
 
   const desc = task.description
@@ -231,17 +236,17 @@ function renderCard(task: Task): string {
     : "";
 
   return `
-    <div class="card" draggable="true" data-id="${task.id}" data-status="${task.status}" data-project="${task.project}" data-completed-at="${task.completed_at || ''}">
+    <div class="card" draggable="true" data-id="${task.id}" data-status="${escapeHtml(task.status)}" data-project="${escapeHtml(task.project)}" data-completed-at="${escapeHtml(task.completed_at)}">
       <div class="card-header">
         <span class="card-id">#${task.id}</span>
         ${levelBadge}
         ${priorityBadge}
         ${statusBadge}
         ${agentBadge}
-        <button class="card-copy-btn" data-copy="#${task.id} ${task.title}" title="Copy to clipboard">⎘</button>
+        <button class="card-copy-btn" data-copy="#${task.id} ${escapeHtml(task.title)}" title="Copy to clipboard">⎘</button>
       </div>
-      <div class="card-title">${task.title}</div>
-      ${desc ? `<div class="card-desc">${desc}</div>` : ""}
+      <div class="card-title">${escapeHtml(task.title)}</div>
+      ${desc ? `<div class="card-desc">${escapeHtml(desc)}</div>` : ""}
       <div class="card-footer">
         ${projectBadge}
         ${planReviewBadge}
@@ -305,13 +310,18 @@ function simpleMarkdownToHtml(md: string): string {
     if (RE_MERMAID_OPEN.test(match)) {
       const diagram = match.replace(RE_MERMAID_OPEN, "").replace(RE_CODE_CLOSE, "").trim();
       const id = `mermaid-${++mermaidCounter}`;
-      codeBlocks.push(`<pre class="mermaid" id="${id}">${diagram}</pre>`);
+      codeBlocks.push(`<pre class="mermaid" id="${id}">${escapeHtml(diagram)}</pre>`);
     } else {
       const code = match.replace(RE_CODE_OPEN, "").replace(RE_CODE_CLOSE, "");
-      codeBlocks.push(`<pre><code>${code}</code></pre>`);
+      codeBlocks.push(`<pre><code>${escapeHtml(code)}</code></pre>`);
     }
     return `\x00CB${codeBlocks.length - 1}\x00`;
   });
+
+  // Escape HTML in remaining text before applying markdown transformations.
+  // Code block placeholders (\x00CB…\x00) contain no HTML-special characters so
+  // they pass through escapeHtml unchanged.
+  text = escapeHtml(text);
 
   // Inline formatting
   text = text
@@ -454,12 +464,12 @@ function renderLifecycleSection(
 function renderReviewEntries(comments: any[]): string {
   if (comments.length === 0) return '';
   return comments.map((rc: any) => `
-    <div class="review-entry ${rc.status}">
+    <div class="review-entry ${escapeHtml(rc.status)}">
       <div class="review-header">
         <span class="badge ${rc.status === 'approved' ? 'review-approved' : 'review-changes'}">
           ${rc.status === 'approved' ? 'Approved' : 'Changes Requested'}
         </span>
-        <span class="review-meta">${rc.reviewer || ''} &middot; ${rc.timestamp?.slice(0, 16) || ''}</span>
+        <span class="review-meta">${escapeHtml(rc.reviewer)} &middot; ${escapeHtml(rc.timestamp?.slice(0, 16))}</span>
       </div>
       <div class="review-comment">${simpleMarkdownToHtml(rc.comment || '')}</div>
     </div>
@@ -474,11 +484,11 @@ function renderTestEntries(results: any[]): string {
         <span class="badge ${r.status === 'pass' ? 'review-approved' : 'review-changes'}">
           ${r.status === 'pass' ? 'Pass' : 'Fail'}
         </span>
-        <span class="review-meta">${r.tester || ''} &middot; ${r.timestamp?.slice(0, 16) || ''}</span>
+        <span class="review-meta">${escapeHtml(r.tester)} &middot; ${escapeHtml(r.timestamp?.slice(0, 16))}</span>
       </div>
-      ${r.lint ? `<div class="test-output"><strong>Lint:</strong> <pre>${r.lint}</pre></div>` : ''}
-      ${r.build ? `<div class="test-output"><strong>Build:</strong> <pre>${r.build}</pre></div>` : ''}
-      ${r.tests ? `<div class="test-output"><strong>Tests:</strong> <pre>${r.tests}</pre></div>` : ''}
+      ${r.lint ? `<div class="test-output"><strong>Lint:</strong> <pre>${escapeHtml(r.lint)}</pre></div>` : ''}
+      ${r.build ? `<div class="test-output"><strong>Build:</strong> <pre>${escapeHtml(r.build)}</pre></div>` : ''}
+      ${r.tests ? `<div class="test-output"><strong>Tests:</strong> <pre>${escapeHtml(r.tests)}</pre></div>` : ''}
       ${r.comment ? `<div class="review-comment">${simpleMarkdownToHtml(r.comment)}</div>` : ''}
     </div>
   `).join('');
@@ -514,13 +524,13 @@ async function showTaskDetail(id: number, project?: string) {
 
     const tags = parseTags(task.tags);
     const tagsHtml = tags.length
-      ? `<div class="modal-tags">${tags.map((t) => `<span class="tag">${t}</span>`).join("")}</div>`
+      ? `<div class="modal-tags">${tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>`
       : "";
 
     const meta = [
-      `<strong>Project:</strong> ${task.project}`,
-      `<strong>Status:</strong> ${task.status}`,
-      `<strong>Priority:</strong> ${task.priority}`,
+      `<strong>Project:</strong> ${escapeHtml(task.project)}`,
+      `<strong>Status:</strong> ${escapeHtml(task.status)}`,
+      `<strong>Priority:</strong> ${escapeHtml(task.priority)}`,
       `<strong>Created:</strong> ${task.created_at?.slice(0, 10) || "-"}`,
       task.started_at
         ? `<strong>Started:</strong> ${task.started_at.slice(0, 10)}`
@@ -566,10 +576,10 @@ async function showTaskDetail(id: number, project?: string) {
     const attachments = parseJsonArray(task.attachments);
     const attachmentsHtml = attachments.length > 0
       ? `<div class="attachments-grid">${attachments.map((a: any) =>
-          `<div class="attachment-thumb" data-stored="${a.storedName}">
-            <img src="${a.url}" alt="${a.filename}" loading="lazy" />
-            <button class="attachment-remove" data-id="${id}" data-name="${a.storedName}" title="Remove">&times;</button>
-            <span class="attachment-name">${a.filename}</span>
+          `<div class="attachment-thumb" data-stored="${escapeHtml(a.storedName)}">
+            <img src="${escapeHtml(a.url)}" alt="${escapeHtml(a.filename)}" loading="lazy" />
+            <button class="attachment-remove" data-id="${id}" data-name="${escapeHtml(a.storedName)}" title="Remove">&times;</button>
+            <span class="attachment-name">${escapeHtml(a.filename)}</span>
           </div>`
         ).join('')}</div>`
       : '';
@@ -712,14 +722,14 @@ async function showTaskDetail(id: number, project?: string) {
         const { name, model } = splitAgentModel(entry.agent || '');
         const modelFromField = entry.model || model;
         const modelBadge = modelFromField
-          ? `<span class="badge model-tag model-${modelFromField.toLowerCase()}">${modelFromField}</span>`
+          ? `<span class="badge model-tag model-${escapeHtml(modelFromField.toLowerCase())}">${escapeHtml(modelFromField)}</span>`
           : '';
         return `
           <div class="agent-log-entry">
-            <span class="agent-log-time">${entry.timestamp?.slice(0, 16) || ''}</span>
-            <span class="badge agent-tag">${name || entry.agent || ''}</span>
+            <span class="agent-log-time">${escapeHtml(entry.timestamp?.slice(0, 16))}</span>
+            <span class="badge agent-tag">${escapeHtml(name || entry.agent)}</span>
             ${modelBadge}
-            <span class="agent-log-msg">${entry.message || ''}</span>
+            <span class="agent-log-msg">${escapeHtml(entry.message)}</span>
           </div>
         `;
       }).join('');
@@ -740,9 +750,9 @@ async function showTaskDetail(id: number, project?: string) {
     const notesHtml = notes.map((n: any) => `
       <div class="note-entry">
         <div class="note-header">
-          <span class="note-author">${n.author || 'user'}</span>
-          <span class="note-time">${n.timestamp?.slice(0, 16).replace('T', ' ') || ''}</span>
-          <button class="note-delete" data-note-id="${n.id}" title="Delete">&times;</button>
+          <span class="note-author">${escapeHtml(n.author || 'user')}</span>
+          <span class="note-time">${escapeHtml(n.timestamp?.slice(0, 16).replace('T', ' '))}</span>
+          <button class="note-delete" data-note-id="${escapeHtml(String(n.id))}" title="Delete">&times;</button>
         </div>
         <div class="note-text">${simpleMarkdownToHtml(n.text || '')}</div>
       </div>
@@ -763,7 +773,7 @@ async function showTaskDetail(id: number, project?: string) {
     `;
 
     content.innerHTML = `
-      <h1>#${task.id} ${task.title}</h1>
+      <h1>#${task.id} ${escapeHtml(task.title)}</h1>
       <div class="modal-meta">${meta}</div>
       ${tagsHtml}
       ${progressHtml}
@@ -1000,11 +1010,11 @@ async function loadListView() {
     const rows = displayTasks.map(t => {
       const pClass = priorityClass(t.priority);
       const tags = parseTags(t.tags);
-      const tagsHtml = tags.map(tag => `<span class="tag">${tag}</span>`).join("");
+      const tagsHtml = tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join("");
       return `
-        <tr class="status-${t.status}" data-id="${t.id}" data-project="${t.project}" data-completed-at="${t.completed_at || ''}">
+        <tr class="status-${escapeHtml(t.status)}" data-id="${t.id}" data-project="${escapeHtml(t.project)}" data-completed-at="${escapeHtml(t.completed_at)}">
           <td class="col-id">#${t.id}</td>
-          <td class="col-title">${t.title}</td>
+          <td class="col-title">${escapeHtml(t.title)}</td>
           <td>
             <select class="list-status-select" data-id="${t.id}" data-field="status">
               ${COLUMNS.map(c =>
@@ -1026,7 +1036,7 @@ async function loadListView() {
               ).join("")}
             </select>
           </td>
-          <td class="list-date">${t.project || ""}</td>
+          <td class="list-date">${escapeHtml(t.project)}</td>
           <td>${tagsHtml}</td>
           <td class="list-date">${t.created_at?.slice(0, 10) || ""}</td>
           <td class="list-date">${t.completed_at?.slice(0, 10) || ""}</td>
@@ -1107,7 +1117,7 @@ function renderProjectFilter(projects: string[]) {
   const container = document.getElementById("project-filter")!;
   if (projects.length <= 1) {
     container.innerHTML = projects[0]
-      ? `<span class="project-label">${projects[0]}</span>`
+      ? `<span class="project-label">${escapeHtml(projects[0])}</span>`
       : "";
     return;
   }
@@ -1115,7 +1125,7 @@ function renderProjectFilter(projects: string[]) {
   const options = projects
     .map(
       (p) =>
-        `<option value="${p}" ${p === currentProject ? "selected" : ""}>${p}</option>`
+        `<option value="${escapeHtml(p)}" ${p === currentProject ? "selected" : ""}>${escapeHtml(p)}</option>`
     )
     .join("");
 
