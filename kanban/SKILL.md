@@ -14,7 +14,8 @@ Read project config from `.claude/kanban.json` (created by `/kanban-init`):
 ```bash
 CONFIG=$(cat .claude/kanban.json 2>/dev/null)
 PROJECT=$(echo "$CONFIG" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['project'])" 2>/dev/null || basename "$(pwd)")
-DB="$HOME/.claude/kanban-dbs/${PROJECT}.db"
+SANITIZED_PROJECT="${PROJECT//[^A-Za-z0-9_.-]/_}"
+DB="$HOME/.claude/kanban-dbs/${SANITIZED_PROJECT}.db"
 ```
 
 If `.claude/kanban.json` doesn't exist, prompt user to run `/kanban-init`, or fall back to `basename "$(pwd)"`.
@@ -65,11 +66,11 @@ Priority: **HTTP API** (`http://localhost:5173`) → **sqlite3 CLI**
 
 ```bash
 # Read
-sqlite3 -json ~/.claude/kanban-dbs/$PROJECT.db \
+sqlite3 -json ~/.claude/kanban-dbs/$SANITIZED_PROJECT.db \
   "SELECT id, title, status, priority FROM tasks WHERE project='$PROJECT' ORDER BY id"
 
 # Update
-sqlite3 ~/.claude/kanban-dbs/$PROJECT.db \
+sqlite3 ~/.claude/kanban-dbs/$SANITIZED_PROJECT.db \
   "UPDATE tasks SET status='impl', started_at=datetime('now') WHERE id=$ID"
 ```
 
@@ -133,7 +134,7 @@ BOARD=$(curl -s "http://localhost:5173/api/board?project=$PROJECT")
 
 Fallback (no dev server):
 ```bash
-sqlite3 -header -column ~/.claude/kanban-dbs/$PROJECT.db \
+sqlite3 -header -column ~/.claude/kanban-dbs/$SANITIZED_PROJECT.db \
   "SELECT id, title, status, priority FROM tasks WHERE project='$PROJECT' \
    ORDER BY CASE status WHEN 'impl' THEN 0 WHEN 'impl_review' THEN 1 \
    WHEN 'plan' THEN 2 WHEN 'plan_review' THEN 3 WHEN 'test' THEN 4 \
@@ -319,7 +320,7 @@ Ask user which fields to modify, then PATCH via API.
 curl -s -X DELETE "http://localhost:5173/api/task/$ID?project=$PROJECT"
 
 # sqlite3 fallback
-sqlite3 ~/.claude/kanban-dbs/$PROJECT.db "DELETE FROM tasks WHERE id=$ID;"
+sqlite3 ~/.claude/kanban-dbs/$SANITIZED_PROJECT.db "DELETE FROM tasks WHERE id=$ID;"
 ```
 
 ### `/kanban stats` — Statistics

@@ -190,8 +190,9 @@ function renderCard(task: Task): string {
     ? `<span class="badge status-${escapeHtml(task.status)}">${statusLabel}</span>`
     : "";
 
-  // Level badge
-  const levelBadge = `<span class="badge level-${task.level}">L${task.level}</span>`;
+  // Level badge — coerce to integer (1–3) to prevent XSS via non-numeric DB values
+  const safeLevel = Math.min(3, Math.max(1, parseInt(String(task.level), 10) || 3));
+  const levelBadge = `<span class="badge level-${safeLevel}">L${safeLevel}</span>`;
 
   // Agent tag
   const agentBadge = task.current_agent
@@ -556,12 +557,13 @@ async function showTaskDetail(id: number, project?: string) {
       2: { labels: ['Req', 'Plan', 'Impl', 'Review', 'Done'], statuses: ['todo', 'plan', 'impl', 'impl_review', 'done'] },
       3: { labels: ['Req', 'Plan', 'Plan Rev', 'Impl', 'Impl Rev', 'Test', 'Done'], statuses: ['todo', 'plan', 'plan_review', 'impl', 'impl_review', 'test', 'done'] },
     };
-    const lp = levelPhases[task.level] || levelPhases[3];
+    const safeLevel = Math.min(3, Math.max(1, parseInt(String(task.level), 10) || 3));
+    const lp = levelPhases[safeLevel] || levelPhases[3];
     const currentPhase = Math.max(0, lp.statuses.indexOf(task.status));
 
     const progressHtml = `
       <div class="lifecycle-progress">
-        <span class="level-indicator">L${task.level}</span>
+        <span class="level-indicator">L${safeLevel}</span>
         ${lp.labels.map((p, i) => `
           <div class="progress-step ${i < currentPhase ? 'completed' : ''} ${i === currentPhase ? 'current' : ''}">
             <div class="step-dot"></div>

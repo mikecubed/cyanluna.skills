@@ -222,6 +222,11 @@ Parse each line of tasks.md matching this pattern:
 
 For each unchecked task (`- [ ]`), create a kanban entry:
 
+> **Note:** Extract `$LEVEL` as a bare integer before use — the format in tasks.md is `[L1]`/`[L2]`/`[L3]`, but the kanban DB and API expect numeric `1`/`2`/`3`:
+> ```bash
+> LEVEL=$(echo "$LEVEL_TAG" | sed 's/[^0-9]//g')  # "[L2]" → "2"
+> ```
+
 **Via HTTP API (preferred — if board is running):**
 ```bash
 curl -s -X POST http://localhost:5173/api/task \

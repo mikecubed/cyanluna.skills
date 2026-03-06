@@ -29,17 +29,25 @@ PROJECT=$(basename "$(pwd)" | sed 's/\.db$//')
 
 **Always strip `.db` suffix** — old configs stored the DB filename as the project name (e.g. `cpet.db`), which would create `cpet.db.db` without this fix.
 
+**Always sanitize the project name** for use as a DB filename — keep only letters, digits, `.`, `_`, and `-`; replace all other characters (including spaces) with `_`:
+
+```bash
+SANITIZED_PROJECT="${PROJECT//[^A-Za-z0-9_.-]/_}"
+```
+
+Use `$SANITIZED_PROJECT` everywhere a DB filename is needed; use `$PROJECT` (raw) only in `.claude/kanban.json` and display output.
+
 ### 2. Ensure per-project DB schema exists
 
 Read the canonical schema from `~/.claude/skills/kanban/schema.md` (the `CREATE TABLE` block), then run:
 
 ```bash
 mkdir -p ~/.claude/kanban-dbs
-sqlite3 ~/.claude/kanban-dbs/${PROJECT}.db "<CREATE_TABLE_SQL_FROM_SCHEMA_MD>"
+sqlite3 ~/.claude/kanban-dbs/${SANITIZED_PROJECT}.db "<CREATE_TABLE_SQL_FROM_SCHEMA_MD>"
 
 # OneDrive sync safety: use DELETE journal mode instead of WAL
 # WAL mode creates -wal/-shm sidecar files that can desync during cloud sync
-sqlite3 ~/.claude/kanban-dbs/${PROJECT}.db "PRAGMA journal_mode=DELETE;"
+sqlite3 ~/.claude/kanban-dbs/${SANITIZED_PROJECT}.db "PRAGMA journal_mode=DELETE;"
 ```
 
 > **Schema source of truth**: `~/.claude/skills/kanban/schema.md` — always read from there.
@@ -86,8 +94,8 @@ Then output:
 ✅ Project '<PROJECT_NAME>' registered in kanban.
 
   Config:  .claude/kanban.json
-  DB:      ~/.claude/kanban-dbs/<PROJECT_NAME>.db
-           → <DBLINK>/<PROJECT_NAME>.db  (OneDrive ✅)   ← if DBLINK is set
+  DB:      ~/.claude/kanban-dbs/<SANITIZED_PROJECT_NAME>.db
+           → <DBLINK>/<SANITIZED_PROJECT_NAME>.db  (OneDrive ✅)   ← if DBLINK is set
            ⚠️  Not a symlink — run OneDrive setup below for cross-PC sync  ← if DBLINK is empty
   Board:   http://localhost:5173/?project=<PROJECT_NAME>
   Start:   ./kanban-board/start.sh
